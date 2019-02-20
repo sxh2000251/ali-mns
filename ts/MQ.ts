@@ -9,9 +9,10 @@ module AliMNS{
     export class MQ implements IMQ, INotifyRecv{
         // The constructor. name & account is required.
         // region can be "hangzhou", "beijing" or "qingdao", the default is "hangzhou"
-        constructor(name:string, account:Account, region?:string|Region){
+        constructor(name:string, account:Account, region?:string|Region, b64:boolean=true){
             this._name = name;
             this._account = account;
+            this._b64Trans = !!b64;
             // region
             if(region){
                 if(typeof region === "string") this._region = new Region(region, NetworkType.Public, Zone.China);
@@ -46,7 +47,7 @@ module AliMNS{
         // 发送消息
         public sendP(msg:string, priority?:number, delaySeconds?:number){
             
-            var b64 = this.utf8ToBase64(msg);
+            var b64 = this._b64Trans ? this.utf8ToBase64(msg) : msg;
             
             var body :any = { Message: { MessageBody: b64 } };
             if(!isNaN(priority)) body.Message.Priority = priority;
@@ -66,6 +67,7 @@ module AliMNS{
         public recvP(waitSeconds?:number){
             var _this = this;
             var url = this._url;
+            var b64Trans = this._b64Trans;
             if(waitSeconds) url += "?waitseconds=" + waitSeconds;
             debug("GET " + url);
 
@@ -77,7 +79,7 @@ module AliMNS{
                 _this._openStack.accumulateNextGASend("MQ.recvP");
                 _this._openStack.sendP("GET", url, null, null, options).done(function(data){
                     debug(data);
-                    if(data && data.Message && data.Message.MessageBody){
+                    if(b64Trans && data && data.Message && data.Message.MessageBody){
                         data.Message.MessageBody = _this.base64ToUtf8(data.Message.MessageBody)
                     }
                     resolve(data);
@@ -180,5 +182,6 @@ module AliMNS{
         private _account: Account;
         private _urlAttr: string; // mq attr url
         private _pattern = "%s://%s.mns.%s.aliyuncs.com/queues/%s";
+        private _b64Trans: boolean;
     }
 }
